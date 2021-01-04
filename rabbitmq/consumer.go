@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -23,6 +24,15 @@ func main() {
 
 	declareTestQueueF(ch)
 
+	/*
+	----------------
+	All deliveries in AMQP must be acknowledged.  It is expected of the consumer to
+	call Delivery.Ack after it has successfully processed the delivery.  If the
+	consumer is cancelled or the channel or connection is closed any unacknowledged
+	deliveries will be requeued at the end of the same queue.
+	----------------
+
+	 */
 	msg, err := ch.Consume("test-queue", "", false, false, false, false, nil)
 	handleErrorF(err)
 	go startConsumer(ctx, msg)
@@ -62,8 +72,8 @@ func startConsumer(ctx context.Context, msgChannel <-chan amqp.Delivery) {
 
 	go func() {
 		for msg := range msgChannel {
-			log.Println("Message received")
-			log.Println(string(msg.Body))
+			log.Println("Message received:" + string(msg.Body))
+			go process(msg)
 		}
 	}()
 
@@ -72,4 +82,10 @@ func startConsumer(ctx context.Context, msgChannel <-chan amqp.Delivery) {
 		log.Println("Stopping consumption")
 		return
 	}
+}
+
+func process(msg amqp.Delivery) {
+	<-time.After(3 * time.Second)
+	log.Println("Message Processed:" + string(msg.Body))
+	msg.Ack(false)
 }
